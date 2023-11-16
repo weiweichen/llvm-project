@@ -1148,7 +1148,10 @@ PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
   for (auto &F : M)
     Changed |= removeDeadArgumentsFromCallers(F);
 
-  if (!Changed)
+  if (!Changed) {
+    llvm::errs() << "DeadArgumentElimination runs, test failed.\n";
+    exit(1);
     return PreservedAnalyses::all();
+  }
   return PreservedAnalyses::none();
 }
