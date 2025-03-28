@@ -60,18 +60,30 @@ protected:
   }
 
   void SetUp() override {
-    StringRef AssemblyF = "define void @f() { ret void }";
+    const char *FooStr = R""""(
+        @G = external global i32
 
-    Triple TargetTriple("x86--");
+        define i32 @foo() {
+          %1 = load i32, i32* @G; load the global variable
+          %2 = call i32 @f()
+          %3 = mul i32 %1, %2
+          ret i32 %3
+        }
+
+        declare i32 @f() #0
+      )"""";
+    StringRef AssemblyF(FooStr);
+
+    Triple TargetTriple("x86_64--");
     std::string Error;
     const Target *T = TargetRegistry::lookupTarget("", TargetTriple, Error);
     if (!T)
       GTEST_SKIP();
 
     TargetOptions Options;
-    TM = std::unique_ptr<TargetMachine>(
-        T->createTargetMachine(TargetTriple, "", "", Options, std::nullopt,
-                               std::nullopt, CodeGenOptLevel::Default));
+    TM = std::unique_ptr<TargetMachine>(T->createTargetMachine(
+        TargetTriple, "", "", Options, Reloc::Model::PIC_,
+        CodeModel::Model::Large, CodeGenOptLevel::Default));
     if (!TM)
       GTEST_SKIP();
 
@@ -82,24 +94,22 @@ protected:
       report_fatal_error(SMError.getMessage());
     Mf->setDataLayout(TM->createDataLayout());
 
-    F = Mf->getFunction("f");
-    if (!F)
-      report_fatal_error("F?");
+    // F = Mf->getFunction("foo");
+    // if (!F)
+    //   report_fatal_error("F?");
 
-    MachineModuleInfo MMIf(TM.get());
-    MFf = std::make_unique<MachineFunction>(*F, *TM, *TM->getSubtargetImpl(*F),
-                                            MMIf.getContext(), 0);
+    MCFoo.reset(new MCContext(TargetTriple, TM->getMCAsmInfo(),
+                           TM->getMCRegisterInfo(), TM->getMCSubtargetInfo()));
+    MCFoo->setObjectFileInfo(TM->getObjFileLowering());
+    TM->getObjFileLowering()->Initialize(*MCFoo, *TM);
+    MCFoo->setObjectFileInfo(TM->getObjFileLowering());
 
-    MachineModuleInfo MMIg(TM.get());
-    MFg = std::make_unique<MachineFunction>(*F, *TM, *TM->getSubtargetImpl(*F),
-                                            MMIg.getContext(), 0);
+    MachineModuleInfoWrapperPass* MMIWPf = new MachineModuleInfoWrapperPass(TM.get(), &*MCFoo);
+    legacy::PassManager passMgrF;
+    addPassesToEmitMC(passMgrF, MMIWPf);
+    passMgrF.run(*Mf);
+    Mf->dump();
 
-    // MC.reset(new MCContext(TargetTriple, TM->getMCAsmInfo(),
-    // TM->getMCRegisterInfo(),
-    //                        TM->getMCSubtargetInfo()));
-
-    // TM->getObjFileLowering()->Initialize(*MC, *TM);
-    // MC->setObjectFileInfo(TM->getObjFileLowering());
 
     auto ExpectedTestPrinter = TestAsmPrinter::create(
         TargetTriple.str(), /*DwarfVersion=*/4, dwarf::DWARF32);
@@ -114,6 +124,8 @@ protected:
   std::unique_ptr<Module> Mg;
 
   std::unique_ptr<MCContext> MC;
+  std::unique_ptr<MCContext> MCFoo;
+  std::unique_ptr<MCContext> MCBar;
 
   Function *F;
   std::unique_ptr<MachineFunction> MFf;

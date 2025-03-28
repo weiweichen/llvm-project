@@ -363,6 +363,7 @@ MCOperand X86MCInstLower::LowerMachineOperand(const MachineInstr *MI,
   case MachineOperand::MO_MachineBasicBlock:
   case MachineOperand::MO_GlobalAddress:
   case MachineOperand::MO_ExternalSymbol:
+    llvm::dbgs() << "Create external symbol: " << MO.getSymbolName() << "\n";
     return LowerSymbolOperand(MO, GetSymbolFromOperand(MO));
   case MachineOperand::MO_MCSymbol:
     return LowerSymbolOperand(MO, MO.getMCSymbol());
