@@ -84,6 +84,8 @@ public:
 
 private:
   MachineModuleInfoMachO &getMachOMMI() const;
+
+  MCSymbol *GetExternalSymbolSymbol(StringRef Name) const;
 };
 
 } // end anonymous namespace
@@ -149,6 +151,10 @@ MachineModuleInfoMachO &X86MCInstLower::getMachOMMI() const {
   return AsmPrinter.MMI->getObjFileInfo<MachineModuleInfoMachO>();
 }
 
+MCSymbol *X86MCInstLower::GetExternalSymbolSymbol(StringRef Name) const {
+  return AsmPrinter.OutContext.getOrCreateSymbol(Name);
+}
+
 /// GetSymbolFromOperand - Lower an MO_GlobalAddress or MO_ExternalSymbol
 /// operand to an MCSymbol.
 MCSymbol *X86MCInstLower::GetSymbolFromOperand(const MachineOperand &MO) const {
@@ -197,7 +203,7 @@ MCSymbol *X86MCInstLower::GetSymbolFromOperand(const MachineOperand &MO) const {
     // MachineOperand::MO_ExternalSymbol, create it as a symbol
     // in AsmPrinter's OutContext.
     if (MO.isSymbol())
-      Sym = AsmPrinter.OutContext.getOrCreateSymbol(Name);
+      Sym = GetExternalSymbolSymbol(Name);
     else
       Sym = Ctx.getOrCreateSymbol(Name);
   }
